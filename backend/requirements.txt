@@ -1,0 +1,13 @@
+flask>=3.0.0
+flask-cors>=4.0.0
+numpy>=1.26.0
+Pillow>=10.0.0
+opencv-python>=4.8.0
+scikit-learn>=1.3.0
+matplotlib>=3.7.0
+seaborn>=0.13.0
+python-dotenv>=1.0.0
+
+# TensorFlow — Python 3.14 requires the nightly build.
+# Install manually: python -m pip install tf-nightly
+# tf-nightly

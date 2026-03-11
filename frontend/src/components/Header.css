@@ -1,0 +1,121 @@
+/* ── Flag stripe ──────────────────────────────────────────────────────────────── */
+.flag-stripe {
+  display: flex;
+  height: 4px;
+}
+
+.stripe { flex: 1; }
+.stripe.red   { background: #CE1126; }
+.stripe.gold  { background: #FCD116; }
+.stripe.green { background: #006B3F; }
+
+/* ── Header shell ────────────────────────────────────────────────────────────── */
+.header {
+  background: rgba(2, 32, 18, 0.97);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 4px 30px rgba(0,0,0,0.35);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0.85rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* ── Brand ───────────────────────────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo-wrap {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #FCD116, #f0b800);
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(252,209,22,0.4), 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.logo-star {
+  color: #1a0800;
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+}
+
+.brand-sub {
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.45);
+  font-weight: 400;
+  margin-top: 2px;
+  letter-spacing: 0.2px;
+}
+
+/* ── Tech badges ─────────────────────────────────────────────────────────────── */
+.badges {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 0.67rem;
+  font-weight: 700;
+  padding: 0.22rem 0.65rem;
+  border-radius: 6px;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+}
+
+.badge-green {
+  background: rgba(0, 107, 63, 0.55);
+  color: #6ee7b7;
+  border: 1px solid rgba(110, 231, 183, 0.18);
+}
+
+.badge-red {
+  background: rgba(206, 17, 38, 0.28);
+  color: #fca5a5;
+  border: 1px solid rgba(252, 165, 165, 0.18);
+}
+
+.badge-gold {
+  background: rgba(252, 209, 22, 0.18);
+  color: #fde68a;
+  border: 1px solid rgba(253, 230, 138, 0.18);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media (max-width: 520px) {
+  .badges { display: none; }
+  .brand-title { font-size: 0.95rem; }
+  .logo-wrap { width: 38px; height: 38px; border-radius: 11px; }
+  .logo-star { font-size: 1.2rem; }
+}
