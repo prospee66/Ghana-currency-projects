@@ -32,18 +32,21 @@ import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torch.utils.data import DataLoader, random_split
+from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, models, transforms
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.metrics import confusion_matrix, classification_report
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 IMG_SIZE        = 224
-BATCH_SIZE      = 8    # reduced from 32 — uses much less RAM
-INITIAL_EPOCHS  = 10   # reduced from 25 — shorter training time
-FINETUNE_EPOCHS = 8    # reduced from 15
+BATCH_SIZE      = 8
+INITIAL_EPOCHS  = 25   # more epochs — small dataset needs longer training
+FINETUNE_EPOCHS = 15
 LEARNING_RATE   = 1e-3
-FINETUNE_LR     = 1e-4
+FINETUNE_LR     = 5e-5
+WEIGHT_DECAY    = 1e-3  # L2 regularisation to reduce overfitting
+EARLY_STOP_PAT  = 12   # generous patience for small datasets
 
 HERE         = os.path.dirname(os.path.abspath(__file__))
 DATASET_PATH = os.path.normpath(os.path.join(HERE, "..", "..", "dataset"))
@@ -62,14 +65,24 @@ IMAGENET_STD  = [0.229, 0.224, 0.225]
 
 # ── Data loaders ──────────────────────────────────────────────────────────────
 def get_transforms():
+    """
+    Aggressive augmentation for small datasets.
+    Val transform is deterministic (no augmentation).
+    """
     train_tf = transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.RandomRotation(15),
+        transforms.Resize((256, 256)),
+        transforms.RandomCrop(IMG_SIZE),
+        transforms.RandomRotation(20),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.1),
-        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), shear=10),
+        transforms.RandomVerticalFlip(p=0.1),
+        transforms.ColorJitter(brightness=0.4, contrast=0.4,
+                               saturation=0.3, hue=0.05),
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1),
+                                shear=10, scale=(0.85, 1.15)),
+        transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
+        transforms.RandomErasing(p=0.2, scale=(0.02, 0.15)),
     ])
     val_tf = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
@@ -80,34 +93,50 @@ def get_transforms():
 
 
 def get_data_loaders():
+    """
+    Stratified 80/20 split — guarantees every class appears in both
+    train and val sets, which is critical with small datasets.
+    """
     train_tf, val_tf = get_transforms()
 
-    full = datasets.ImageFolder(DATASET_PATH, transform=train_tf)
+    # Load full dataset once to get labels; transform assigned per-subset below
+    full = datasets.ImageFolder(DATASET_PATH)
+    targets = np.array(full.targets)
 
-    total      = len(full)
-    val_size   = int(0.2 * total)
-    train_size = total - val_size
-    train_ds, val_ds = random_split(
-        full, [train_size, val_size],
-        generator=torch.Generator().manual_seed(42)
-    )
+    splitter = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+    train_idx, val_idx = next(splitter.split(targets, targets))
 
-    # Give val subset the val transforms (no augmentation)
-    val_copy           = copy.deepcopy(full)
-    val_copy.transform = val_tf
-    val_ds.dataset     = val_copy
+    # Separate datasets with correct transforms
+    train_ds = copy.deepcopy(full)
+    train_ds.transform = train_tf
+    val_ds   = copy.deepcopy(full)
+    val_ds.transform   = val_tf
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE,
+    train_subset = Subset(train_ds, train_idx)
+    val_subset   = Subset(val_ds,   val_idx)
+
+    train_loader = DataLoader(train_subset, batch_size=BATCH_SIZE,
                               shuffle=True,  num_workers=0)
-    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE,
+    val_loader   = DataLoader(val_subset,   batch_size=BATCH_SIZE,
                               shuffle=False, num_workers=0)
+
+    print(f"  Train samples : {len(train_idx)}")
+    print(f"  Val   samples : {len(val_idx)}")
+
+    # Show per-class val counts so we can verify balance
+    val_labels = targets[val_idx]
+    for i, name in enumerate(full.classes):
+        print(f"    {name}: {(val_labels == i).sum()} val images")
 
     return train_loader, val_loader, full.classes
 
 
 # ── Model ──────────────────────────────────────────────────────────────────────
 def build_model(num_classes: int) -> nn.Module:
-    """Phase-1: frozen MobileNetV2 backbone + custom classification head."""
+    """
+    Phase-1: frozen MobileNetV2 backbone + lightweight head.
+    Simpler head (one hidden layer) generalises better on small data.
+    """
     weights = models.MobileNet_V2_Weights.IMAGENET1K_V1
     model   = models.mobilenet_v2(weights=weights)
 
@@ -116,18 +145,16 @@ def build_model(num_classes: int) -> nn.Module:
 
     in_features = model.classifier[1].in_features
     model.classifier = nn.Sequential(
-        nn.Dropout(0.5),
-        nn.Linear(in_features, 512),
+        nn.Dropout(0.6),              # stronger dropout vs original 0.5
+        nn.Linear(in_features, 256),
         nn.ReLU(inplace=True),
-        nn.Dropout(0.3),
-        nn.Linear(512, 256),
-        nn.ReLU(inplace=True),
+        nn.Dropout(0.4),
         nn.Linear(256, num_classes),
     )
     return model.to(DEVICE)
 
 
-def unfreeze_top_layers(model: nn.Module, n_layers: int = 20):
+def unfreeze_top_layers(model: nn.Module, n_layers: int = 10):
     """Phase-2: unfreeze last n feature layers for fine-tuning."""
     feature_layers = list(model.features.children())
     for layer in feature_layers[-n_layers:]:
@@ -163,21 +190,24 @@ def run_epoch(model, loader, criterion, optimizer=None):
 
 
 def train_phase(model, train_loader, val_loader, epochs, lr, phase_name):
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=lr
+    # Label smoothing reduces overconfidence — helps generalisation
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+    optimizer = optim.AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=lr, weight_decay=WEIGHT_DECAY
     )
-    scheduler  = ReduceLROnPlateau(optimizer, mode="max", factor=0.5, patience=3)
+    # Cosine annealing decays LR smoothly — better than ReduceLROnPlateau
+    # for small datasets where val loss can be noisy
+    scheduler  = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr * 0.01)
     best_acc   = 0.0
     best_state = None
     no_improve = 0
-    patience   = 7
     history    = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
 
     for epoch in range(1, epochs + 1):
         tr_loss, tr_acc = run_epoch(model, train_loader, criterion, optimizer)
         va_loss, va_acc = run_epoch(model, val_loader,   criterion)
-        scheduler.step(va_acc)
+        scheduler.step()
 
         history["train_loss"].append(tr_loss)
         history["val_loss"].append(va_loss)
@@ -195,11 +225,12 @@ def train_phase(model, train_loader, val_loader, epochs, lr, phase_name):
             print(f"           -> New best val accuracy: {va_acc*100:.2f}%")
         else:
             no_improve += 1
-            if no_improve >= patience:
+            if no_improve >= EARLY_STOP_PAT:
                 print(f"           Early stopping at epoch {epoch}")
                 break
 
     model.load_state_dict(best_state)
+    print(f"[{phase_name}] Best val accuracy: {best_acc*100:.2f}%")
     return model, history
 
 
@@ -284,15 +315,15 @@ def main():
         json.dump(class_names, f, indent=2)
     print(f"Class names saved -> {CLASS_NAMES}")
 
-    # Phase 1 — backbone frozen
+    # Phase 1 — backbone frozen, train only the new head
     print("\n--- Phase 1: Feature Extraction ---")
     model = build_model(num_classes)
     model, h1 = train_phase(model, train_loader, val_loader,
                             INITIAL_EPOCHS, LEARNING_RATE, "Phase1")
 
-    # Phase 2 — unfreeze top layers
+    # Phase 2 — unfreeze last 10 backbone layers for fine-tuning
     print("\n--- Phase 2: Fine-Tuning ---")
-    unfreeze_top_layers(model, n_layers=20)
+    unfreeze_top_layers(model, n_layers=10)
     model, h2 = train_phase(model, train_loader, val_loader,
                             FINETUNE_EPOCHS, FINETUNE_LR, "Phase2")
 
