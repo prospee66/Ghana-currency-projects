@@ -12,16 +12,42 @@ from icrawler.builtin import BingImageCrawler
 
 DATASET_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dataset")
 
-# Search queries per denomination — multiple queries give more variety
+# Search queries per denomination — targeting current Bank of Ghana series (2019+)
+# The current series features the Big Six independence heroes on the front.
+# 200 GHS was introduced in 2019. Queries use "new series" / year to avoid old notes.
 DENOMINATIONS = {
-    "1_GHS":   ["Ghana 1 cedi banknote", "GHC 1 cedi note Bank of Ghana"],
-    "2_GHS":   ["Ghana 2 cedis banknote", "GHC 2 cedis note Bank of Ghana"],
-    "5_GHS":   ["Ghana 5 cedis banknote", "GHC 5 cedis note Bank of Ghana"],
-    "10_GHS":  ["Ghana 10 cedis banknote", "GHC 10 cedis note Bank of Ghana"],
-    "20_GHS":  ["Ghana 20 cedis banknote", "GHC 20 cedis note Bank of Ghana"],
-    "50_GHS":  ["Ghana 50 cedis banknote", "GHC 50 cedis note Bank of Ghana"],
-    "100_GHS": ["Ghana 100 cedis banknote", "GHC 100 cedis note Bank of Ghana"],
-    "200_GHS": ["Ghana 200 cedis banknote", "GHC 200 cedis note Bank of Ghana"],
+    "1_GHS":   [
+        "Ghana new 1 cedi note 2019 Bank of Ghana current series",
+        "GHS 1 cedi banknote Big Six Ghana current",
+    ],
+    "2_GHS":   [
+        "Ghana new 2 cedis note 2019 Bank of Ghana current series",
+        "GHS 2 cedis banknote Big Six Ghana current",
+    ],
+    "5_GHS":   [
+        "Ghana new 5 cedis note 2019 Bank of Ghana current series",
+        "GHS 5 cedis banknote Big Six Ghana current",
+    ],
+    "10_GHS":  [
+        "Ghana new 10 cedis note 2019 Bank of Ghana current series",
+        "GHS 10 cedis banknote Big Six Ghana current",
+    ],
+    "20_GHS":  [
+        "Ghana new 20 cedis note 2019 Bank of Ghana current series",
+        "GHS 20 cedis banknote Big Six Ghana current",
+    ],
+    "50_GHS":  [
+        "Ghana new 50 cedis note 2019 Bank of Ghana current series",
+        "GHS 50 cedis banknote Big Six Ghana current",
+    ],
+    "100_GHS": [
+        "Ghana new 100 cedis note 2019 Bank of Ghana current series",
+        "GHS 100 cedis banknote Big Six Ghana current",
+    ],
+    "200_GHS": [
+        "Ghana 200 cedis note Bank of Ghana 2019 new denomination",
+        "GHS 200 cedis banknote Ghana current series 200",
+    ],
 }
 
 IMAGES_PER_QUERY = 60   # 2 queries × 60 = up to 120 images per class
