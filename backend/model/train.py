@@ -33,6 +33,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
+
+# Limit CPU threads to prevent overheating on laptops/low-end PCs
+torch.set_num_threads(2)
+torch.set_num_interop_threads(1)
 from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, models, transforms
 from sklearn.model_selection import StratifiedShuffleSplit
